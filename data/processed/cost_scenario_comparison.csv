@@ -1,0 +1,7 @@
+scenario,strategy,false_alarm_cost,missed_late_cost,false_alarms,missed_late_orders,total_cost_units
+Balanced,Full model,1,3,630,158,1104
+Service-focused,Full model,1,5,630,158,1420
+Investigation-cost-focused,Full model,3,3,630,158,2364
+Balanced,Shipping-mode baseline,1,3,144,481,1587
+Service-focused,Shipping-mode baseline,1,5,144,481,2549
+Investigation-cost-focused,Shipping-mode baseline,3,3,144,481,1875

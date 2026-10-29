@@ -1,0 +1,5 @@
+alert_priority,total_orders,actual_late_orders,actual_late_rate_pct,average_late_probability_pct
+High,619,562,90.79,90.78
+Medium,127,102,80.31,79.45
+Low,921,373,40.5,42.21
+No Alert,370,158,42.7,39.24

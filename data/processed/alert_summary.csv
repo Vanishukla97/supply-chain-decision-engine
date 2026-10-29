@@ -1,0 +1,10 @@
+metric,value
+Total orders evaluated,2037.0
+Orders flagged for late-delivery risk,1667.0
+Orders not flagged,370.0
+Correct late alerts (true positives),1037.0
+False alarms,630.0
+Missed late orders,158.0
+Correctly unflagged orders,212.0
+Alert rate (%),81.84
+Precision (%),62.21

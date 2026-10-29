@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+
+# IDE and operating system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs and notebooks
+*.log
+.ipynb_checkpoints/
+
+# Raw source datasets
+data/raw/
+
+# Intermediate training and test splits
+data/processed/X_train.csv
+data/processed/X_test.csv
+data/processed/y_train.csv
+data/processed/y_test.csv
+
+# Detailed order-level datasets and predictions
+data/processed/order_decision_dataset.csv
+data/processed/orders_summary.csv
+data/processed/final_test_predictions.csv
+data/processed/prioritized_alerts.csv
+data/processed/model_probability_audit.csv

@@ -1,0 +1,8 @@
+{
+  "policy_name": "balanced_alerts",
+  "minimum_recall": 0.80,
+  "selected_threshold": 0.40,
+  "selection_period": "2017-10-01 to 2017-12-31",
+  "selection_rule": "Maximize precision among tested thresholds with recall >= minimum_recall",
+  "thresholds_tested": [0.35, 0.40, 0.45, 0.50, 0.55, 0.60]
+}

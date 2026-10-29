@@ -1,0 +1,5 @@
+shipping_mode,orders,actual_late_rate_pct,predicted_late_rate_pct,precision,recall,f1_score
+First Class,1233,100.0,100.0,1.0,1.0,1.0
+Same Day,442,52.26,6.11,0.333,0.039,0.07
+Second Class,1582,80.28,100.0,0.803,1.0,0.891
+Standard Class,4786,39.74,0.0,0.0,0.0,0.0

@@ -1,0 +1,67 @@
+SUPPLY CHAIN DATA PROFILING REPORT
+========================================
+Rows: 180,519
+Columns: 53
+
+COLUMN DATA TYPES
+Type                                 str
+Days for shipping (real)           int64
+Days for shipment (scheduled)      int64
+Benefit per order                float64
+Sales per customer               float64
+Delivery Status                      str
+Late_delivery_risk                 int64
+Category Id                        int64
+Category Name                        str
+Customer City                        str
+Customer Country                     str
+Customer Email                       str
+Customer Fname                       str
+Customer Id                        int64
+Customer Lname                       str
+Customer Password                    str
+Customer Segment                     str
+Customer State                       str
+Customer Street                      str
+Customer Zipcode                 float64
+Department Id                      int64
+Department Name                      str
+Latitude                         float64
+Longitude                        float64
+Market                               str
+Order City                           str
+Order Country                        str
+Order Customer Id                  int64
+order date (DateOrders)              str
+Order Id                           int64
+Order Item Cardprod Id             int64
+Order Item Discount              float64
+Order Item Discount Rate         float64
+Order Item Id                      int64
+Order Item Product Price         float64
+Order Item Profit Ratio          float64
+Order Item Quantity                int64
+Sales                            float64
+Order Item Total                 float64
+Order Profit Per Order           float64
+Order Region                         str
+Order State                          str
+Order Status                         str
+Order Zipcode                    float64
+Product Card Id                    int64
+Product Category Id                int64
+Product Description              float64
+Product Image                        str
+Product Name                         str
+Product Price                    float64
+Product Status                     int64
+shipping date (DateOrders)           str
+Shipping Mode                        str
+
+MISSING VALUES
+Product Description    180519
+Order Zipcode          155679
+Customer Lname              8
+Customer Zipcode            3
+
+Exact duplicate rows: 0
