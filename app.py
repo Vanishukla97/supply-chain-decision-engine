@@ -113,9 +113,9 @@ st.markdown("""
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data" / "processed"
 
-ORDERS_FILE = DATA_DIR / "order_decision_dataset.csv"
-PREDICTIONS_FILE = DATA_DIR / "final_test_predictions.csv"
-ALERTS_FILE = DATA_DIR / "prioritized_alerts.csv"
+MODEL_SUMMARY_FILE = DATA_DIR / "model_performance_summary.csv"
+PRIORITY_FILE = DATA_DIR / "priority_evaluation.csv"
+SHIPPING_FILE = DATA_DIR / "shipping_mode_kpis.csv"
 COST_FILE = DATA_DIR / "cost_scenario_comparison.csv"
 
 st.title("📦 Supply Chain Decision Intelligence")
@@ -129,378 +129,202 @@ st.info(
     "It does not represent live shipment monitoring."
 )
 
-# Load datasets safely
+# Load compact, aggregate datasets only
 @st.cache_data
 def load_data(path):
     if path.exists():
         return pd.read_csv(path)
     return None
 
-orders = load_data(ORDERS_FILE)
-predictions = load_data(PREDICTIONS_FILE)
-alerts = load_data(ALERTS_FILE)
+model_summary = load_data(MODEL_SUMMARY_FILE)
+priorities = load_data(PRIORITY_FILE)
+shipping = load_data(SHIPPING_FILE)
 costs = load_data(COST_FILE)
 
-# Check required files
-if orders is None:
-    st.error(f"Orders dataset not found: {ORDERS_FILE}")
+if model_summary is None or model_summary.empty:
+    st.error(f"Model summary file not found or empty: {MODEL_SUMMARY_FILE}")
     st.stop()
 
-if predictions is None:
-    st.error(f"Prediction results not found: {PREDICTIONS_FILE}")
+if shipping is None or shipping.empty:
+    st.error(f"Shipping KPI file not found or empty: {SHIPPING_FILE}")
     st.stop()
 
 # Overview
 st.header("1. Overview")
-
-total_orders = len(predictions)
-late_rate = predictions["actual_is_late"].mean() * 100
-alert_rate = predictions["predicted_late"].mean() * 100
+m = model_summary.iloc[0]
 
 c1, c2, c3 = st.columns(3)
+c1.metric("Orders Evaluated", f"{int(m['total_orders']):,}")
+c2.metric("Actual Late-Delivery Rate", f"{m['actual_late_rate_pct']:.2f}%")
+c3.metric("Model Alert Rate", f"{m['alert_rate_pct']:.2f}%")
 
-c1.metric("Orders Evaluated", f"{total_orders:,}")
-c2.metric("Actual Late-Delivery Rate", f"{late_rate:.2f}%")
-c3.metric("Model Alert Rate", f"{alert_rate:.2f}%")
-
-# Model performance
 st.subheader("Model Performance")
+p1, p2, p3 = st.columns(3)
+p1.metric("Precision", f"{m['precision_pct']:.2f}%")
+p2.metric("Recall", f"{m['recall_pct']:.2f}%")
+p3.metric("F1 Score", f"{m['f1_pct']:.2f}%")
 
-if {"actual_is_late", "predicted_late"}.issubset(predictions.columns):
-    actual = predictions["actual_is_late"].astype(int)
-    predicted = predictions["predicted_late"].astype(int)
-
-    true_positive = int(((actual == 1) & (predicted == 1)).sum())
-    false_positive = int(((actual == 0) & (predicted == 1)).sum())
-    false_negative = int(((actual == 1) & (predicted == 0)).sum())
-    true_negative = int(((actual == 0) & (predicted == 0)).sum())
-
-    precision = (
-        true_positive / (true_positive + false_positive)
-        if true_positive + false_positive else 0
-    )
-    recall = (
-        true_positive / (true_positive + false_negative)
-        if true_positive + false_negative else 0
-    )
-    f1 = (
-        2 * precision * recall / (precision + recall)
-        if precision + recall else 0
-    )
-
-    p1, p2, p3 = st.columns(3)
-    p1.metric("Precision", f"{precision * 100:.2f}%")
-    p2.metric("Recall", f"{recall * 100:.2f}%")
-    p3.metric("F1 Score", f"{f1 * 100:.2f}%")
-
-    st.caption(
-        f"True positives: {true_positive:,} | "
-        f"False alarms: {false_positive:,} | "
-        f"Missed late orders: {false_negative:,} | "
-        f"Correctly unflagged: {true_negative:,}"
-    )
+st.caption(
+    f"True positives: {int(m['true_positives']):,} | "
+    f"False alarms: {int(m['false_positives']):,} | "
+    f"Missed late orders: {int(m['false_negatives']):,} | "
+    f"Correctly unflagged: {int(m['true_negatives']):,}"
+)
 
 st.divider()
 
 
 # Risk monitoring
 st.header("2. Risk Monitoring")
+st.caption(
+    "Aggregate historical outcomes by alert priority. Individual order records "
+    "are intentionally excluded from the deployed dashboard."
+)
 
-if alerts is not None:
-    st.caption(
-        "Explore historical orders by predicted late-delivery risk and alert priority."
-    )
+if priorities is not None and not priorities.empty:
+    required_priority_columns = {
+        "alert_priority",
+        "total_orders",
+        "actual_late_orders",
+        "actual_late_rate_pct",
+        "average_late_probability_pct",
+    }
 
-    filtered_alerts = alerts.copy()
-
-    # Priority filter
-    if "alert_priority" in filtered_alerts.columns:
-        priority_col = "alert_priority"
-    elif "priority" in filtered_alerts.columns:
-        priority_col = "priority"
-    else:
-        priority_col = None
-
-    if priority_col:
+    if required_priority_columns.issubset(priorities.columns):
         priority_order = ["High", "Medium", "Low", "No Alert"]
+        priorities = priorities.copy()
+        priorities["alert_priority"] = pd.Categorical(
+            priorities["alert_priority"],
+            categories=priority_order,
+            ordered=True,
+        )
+        priorities = priorities.sort_values("alert_priority")
 
-        available_priorities = (
-            filtered_alerts[priority_col]
-            .dropna()
-            .astype(str)
-            .unique()
-            .tolist()
+        r1, r2, r3 = st.columns(3)
+        r1.metric("Orders in Priority Summary", f"{int(priorities['total_orders'].sum()):,}")
+        r2.metric("Actual Late Orders", f"{int(priorities['actual_late_orders'].sum()):,}")
+        r3.metric(
+            "Average Predicted Risk",
+            f"{priorities['average_late_probability_pct'].mean():.2f}%",
         )
 
-        priority_options = ["All"] + [
-            priority
-            for priority in priority_order
-            if priority in available_priorities
-        ]
-
-        selected_priority = st.selectbox(
-            "Alert priority",
-            priority_options,
-            key="risk_priority_filter"
-        )
-
-        if selected_priority != "All":
-            filtered_alerts = filtered_alerts[
-                filtered_alerts[priority_col].astype(str)
-                == selected_priority
-            ]
-
-    # Minimum predicted risk
-    if "late_probability" in filtered_alerts.columns:
-        min_risk = st.slider(
-            "Minimum predicted late-delivery probability",
-            min_value=0,
-            max_value=100,
-            value=40,
-            step=5,
-            format="%d%%",
-            key="risk_probability_filter"
-        )
-
-        filtered_alerts = filtered_alerts[
-            filtered_alerts["late_probability"] >= min_risk / 100
-        ]
-
-    # Search by Order ID
-    if "Order Id" in filtered_alerts.columns:
-        search_order = st.text_input(
-            "Search by Order ID",
-            placeholder="Enter an order ID...",
-            key="risk_order_search"
-        )
-
-        if search_order.strip():
-            filtered_alerts = filtered_alerts[
-                filtered_alerts["Order Id"]
-                .astype(str)
-                .str.contains(
-                    search_order.strip(),
-                    case=False,
-                    na=False,
-                    regex=False
-                )
-            ]
-
-    # Filter by actual delivery outcome
-    if "actual_is_late" in filtered_alerts.columns:
-        outcome_filter = st.selectbox(
-            "Actual delivery outcome",
-            ["All", "Late", "On time"],
-            key="risk_outcome_filter"
-        )
-
-        if outcome_filter == "Late":
-            filtered_alerts = filtered_alerts[
-                filtered_alerts["actual_is_late"] == 1
-            ]
-        elif outcome_filter == "On time":
-            filtered_alerts = filtered_alerts[
-                filtered_alerts["actual_is_late"] == 0
-            ]
-
-    # Filter by prediction correctness
-    if "correct_prediction" in filtered_alerts.columns:
-        prediction_filter = st.selectbox(
-            "Prediction result",
-            ["All", "Correct", "Incorrect"],
-            key="risk_prediction_filter"
-        )
-
-        if prediction_filter == "Correct":
-            filtered_alerts = filtered_alerts[
-                filtered_alerts["correct_prediction"] == 1
-            ]
-        elif prediction_filter == "Incorrect":
-            filtered_alerts = filtered_alerts[
-                filtered_alerts["correct_prediction"] == 0
-            ]
-
-    # Highest-risk orders first
-    if "late_probability" in filtered_alerts.columns:
-        filtered_alerts = filtered_alerts.sort_values(
-            "late_probability",
-            ascending=False
-        )
-
-    st.write(
-        f"**{len(filtered_alerts):,} orders match your filters**"
-    )
-
-    # Prepare business-friendly table
-    display_alerts = filtered_alerts.copy()
-
-    display_alerts = display_alerts.rename(columns={
-        "Order Id": "Order ID",
-        "order_date": "Order Date",
-        "actual_is_late": "Actual Outcome",
-        "late_probability": "Late-Delivery Risk",
-        "alert_threshold": "Alert Threshold",
-        "predicted_late": "Alert Status",
-        "correct_prediction": "Prediction Result",
-        "alert_priority": "Priority",
-        "priority": "Priority"
-    })
-
-    # Format probabilities
-    if "Late-Delivery Risk" in display_alerts.columns:
-        display_alerts["Late-Delivery Risk"] = (
-            display_alerts["Late-Delivery Risk"].map(
-                lambda value: f"{value:.1%}"
-                if pd.notna(value) else "N/A"
+        priority_chart = (
+            alt.Chart(priorities)
+            .mark_bar()
+            .encode(
+                x=alt.X("alert_priority:N", title="Alert priority", sort=priority_order),
+                y=alt.Y(
+                    "actual_late_rate_pct:Q",
+                    title="Actual late-delivery rate (%)",
+                    scale=alt.Scale(domain=[0, 100]),
+                ),
+                tooltip=[
+                    alt.Tooltip("alert_priority:N", title="Alert priority"),
+                    alt.Tooltip("total_orders:Q", title="Orders", format=","),
+                    alt.Tooltip("actual_late_orders:Q", title="Actual late orders", format=","),
+                    alt.Tooltip("actual_late_rate_pct:Q", title="Actual late rate", format=".2f"),
+                    alt.Tooltip(
+                        "average_late_probability_pct:Q",
+                        title="Average predicted risk (%)",
+                        format=".2f",
+                    ),
+                ],
             )
+            .properties(height=340)
         )
+        st.altair_chart(priority_chart, use_container_width=True)
 
-    if "Alert Threshold" in display_alerts.columns:
-        display_alerts["Alert Threshold"] = (
-            display_alerts["Alert Threshold"].map(
-                lambda value: f"{value:.0%}"
-                if pd.notna(value) else "N/A"
-            )
+        st.dataframe(
+            priorities[
+                [
+                    "alert_priority",
+                    "total_orders",
+                    "actual_late_orders",
+                    "actual_late_rate_pct",
+                    "average_late_probability_pct",
+                ]
+            ].rename(
+                columns={
+                    "alert_priority": "Alert Priority",
+                    "total_orders": "Total Orders",
+                    "actual_late_orders": "Actual Late Orders",
+                    "actual_late_rate_pct": "Actual Late Rate (%)",
+                    "average_late_probability_pct": "Average Predicted Risk (%)",
+                }
+            ).round(2),
+            use_container_width=True,
+            hide_index=True,
         )
-
-    # Convert numeric flags into readable labels
-    if "Actual Outcome" in display_alerts.columns:
-        display_alerts["Actual Outcome"] = (
-            display_alerts["Actual Outcome"]
-            .map({1: "Late", 0: "On Time"})
-            .fillna("Unknown")
+        st.caption(
+            "These are grouped historical evaluation results, not live alerts. "
+            "Priority-level rates may vary across datasets and time periods."
         )
-
-    if "Alert Status" in display_alerts.columns:
-        display_alerts["Alert Status"] = (
-            display_alerts["Alert Status"]
-            .map({1: "Alert", 0: "No Alert"})
-            .fillna("Unknown")
-        )
-
-    if "Prediction Result" in display_alerts.columns:
-        display_alerts["Prediction Result"] = (
-            display_alerts["Prediction Result"]
-            .map({1: "Correct", 0: "Incorrect"})
-            .fillna("Unknown")
-        )
-
-    # Arrange columns in a business-friendly order
-    preferred_columns = [
-        "Order ID",
-        "Order Date",
-        "Actual Outcome",
-        "Late-Delivery Risk",
-        "Alert Threshold",
-        "Alert Status",
-        "Prediction Result",
-        "Priority"
-    ]
-
-    ordered_columns = [
-        column
-        for column in preferred_columns
-        if column in display_alerts.columns
-    ]
-
-    # Keep any additional columns that may exist
-    remaining_columns = [
-        column
-        for column in display_alerts.columns
-        if column not in ordered_columns
-    ]
-
-    display_alerts = display_alerts[
-        ordered_columns + remaining_columns
-    ]
-
-    st.dataframe(
-        display_alerts,
-        use_container_width=True,
-        hide_index=True
-    )
-
-    st.caption(
-        "No Alert means predicted late-delivery probability is below the "
-        "selected threshold; it does not guarantee on-time delivery."
-    )
-
-    st.download_button(
-        "Download filtered risk records",
-        data=filtered_alerts.to_csv(index=False).encode("utf-8"),
-        file_name="filtered_risk_records.csv",
-        mime="text/csv"
-    )
-
+    else:
+        st.warning("The priority evaluation file is missing required summary columns.")
 else:
-    st.warning("Prioritized alert file was not found.")
-
+    st.warning("Priority evaluation summary was not found.")
 
 st.divider()
 
+
 # Shipping analysis
 st.header("3. Shipping Mode Analysis")
-
 st.caption(
-    "Scope: all available non-cancelled historical orders, "
-    "January 2015–January 2018. This differs from the "
-    "January 2018 model evaluation shown above."
+    "Scope: all available non-cancelled historical orders, January 2015–January 2018. "
+    "This differs from the January 2018 model evaluation shown above."
 )
 
-if "shipping_mode" in orders.columns and "is_late" in orders.columns:
-    shipping_analysis = (
-        orders.groupby("shipping_mode")
-        .agg(
-            total_orders=("is_late", "size"),
-            late_orders=("is_late", "sum"),
-            late_rate=("is_late", "mean")
-        )
-        .reset_index()
-    )
+shipping_analysis = shipping.copy()
+required_shipping_columns = {
+    "shipping_mode", "orders", "late_orders", "late_rate_pct"
+}
 
-    shipping_analysis["late_rate_pct"] = (
-        shipping_analysis["late_rate"] * 100
-    )
+if required_shipping_columns.issubset(shipping_analysis.columns):
+    shipping_analysis = shipping_analysis.rename(columns={"orders": "total_orders"})
 
     shipping_chart = (
-    alt.Chart(shipping_analysis)
-    .mark_bar()
-    .encode(
-        x=alt.X(
-            "shipping_mode:N",
-            title="Shipping Mode",
-            sort="-y",
-            axis=alt.Axis(labelAngle=0)
-        ),
-        y=alt.Y(
-            "late_rate_pct:Q",
-            title="Late-delivery rate (%)",
-            scale=alt.Scale(domain=[0, 100]),
-            axis=alt.Axis(values=[0, 20, 40, 60, 80, 100])
-        ),
-        tooltip=[
-            alt.Tooltip("shipping_mode:N", title="Shipping mode"),
-            alt.Tooltip("total_orders:Q", title="Total orders"),
-            alt.Tooltip("late_orders:Q", title="Late orders"),
-            alt.Tooltip(
+        alt.Chart(shipping_analysis)
+        .mark_bar()
+        .encode(
+            x=alt.X(
+                "shipping_mode:N",
+                title="Shipping Mode",
+                sort="-y",
+                axis=alt.Axis(labelAngle=0),
+            ),
+            y=alt.Y(
                 "late_rate_pct:Q",
-                title="Late rate",
-                format=".2f"
-            )
-        ]
+                title="Late-delivery rate (%)",
+                scale=alt.Scale(domain=[0, 100]),
+                axis=alt.Axis(values=[0, 20, 40, 60, 80, 100]),
+            ),
+            tooltip=[
+                alt.Tooltip("shipping_mode:N", title="Shipping mode"),
+                alt.Tooltip("total_orders:Q", title="Total orders", format=","),
+                alt.Tooltip("late_orders:Q", title="Late orders", format=","),
+                alt.Tooltip("late_rate_pct:Q", title="Late rate (%)", format=".2f"),
+            ],
+        )
+        .properties(height=350)
     )
-    .properties(height=350)
-)
 
     st.altair_chart(shipping_chart, use_container_width=True)
-
     st.dataframe(
         shipping_analysis[
             ["shipping_mode", "total_orders", "late_orders", "late_rate_pct"]
-        ].round(2),
+        ].rename(
+            columns={
+                "shipping_mode": "Shipping Mode",
+                "total_orders": "Total Orders",
+                "late_orders": "Late Orders",
+                "late_rate_pct": "Late Rate (%)",
+            }
+        ).round(2),
         use_container_width=True,
-        hide_index=True
+        hide_index=True,
     )
+else:
+    st.warning("The shipping KPI file is missing required summary columns.")
 
 st.caption(
     "Shipping-mode rates describe the historical dataset and should not "
